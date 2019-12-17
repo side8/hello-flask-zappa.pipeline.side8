@@ -1,0 +1,90 @@
+Description: hello-flask-zappa.pipeline.side8
+Transform: AWS::Serverless-2016-10-31
+Parameters:
+  Environment:
+    Type: String
+  ArtifactBucketName:
+    Type: String
+  ArtifactBucketPath:
+    Type: String
+
+Resources:
+  ServerlessApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      EndpointConfiguration: REGIONAL
+      DefinitionBody:
+        openapi: "3.0.1"
+        info:
+          version: "2016-09-12T17:50:37Z"
+          title: !Sub ${Environment}-hello-flask-zappa
+        x-amazon-apigateway-binary-media-types:
+         - "*/*"
+        paths:
+          /:
+            x-amazon-apigateway-any-method:
+              responses: {}
+              x-amazon-apigateway-integration:
+                credentials: !GetAtt ServerlessApiLambdaFunctionIamRole.Arn
+                uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunction.Arn}/invocations
+                passthroughBehavior: "when_no_match"
+                httpMethod: "POST"
+                type: "aws_proxy"
+          /{proxy+}:
+            x-amazon-apigateway-any-method:
+              parameters:
+                - name: "proxy"
+                  in: "path"
+                  required: true
+                  schema:
+                    type: "string"
+              responses: {}
+              x-amazon-apigateway-integration:
+                credentials: !GetAtt ServerlessApiLambdaFunctionIamRole.Arn
+                uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunction.Arn}/invocations
+                passthroughBehavior: "when_no_match"
+                httpMethod: "POST"
+                type: "aws_proxy"
+
+  ServerlessApiLambdaFunctionIamRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: apigateway.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: lambda
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Resource: !GetAtt LambdaFunction.Arn
+                Action: lambda:InvokeFunction
+
+  LambdaFunctionIamRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  LambdaFunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      Role: !GetAtt LambdaFunctionIamRole.Arn
+      Handler: handler.lambda_handler
+      Runtime: python3.7
+      Code:
+        S3Bucket: !Ref ArtifactBucketName
+        S3Key: !Sub ${ArtifactBucketPath}/App.zip
