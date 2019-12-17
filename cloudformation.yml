@@ -1,0 +1,123 @@
+Description: hello-flask-zappa.pipeline.side8
+Transform: AWS::Serverless-2016-10-31
+Parameters:
+  Environment:
+    Type: String
+  ArtifactBucketName:
+    Type: String
+  ArtifactBucketPath:
+    Type: String
+
+Resources:
+  ServerlessApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      EndpointConfiguration: REGIONAL
+      DefinitionBody:
+        swagger: "2.0"
+        info:
+          version: "2017-04-26T03:23:48Z"
+          title: !Sub ${Environment}-hello-flask-zappa
+        basePath: "/"
+        schemes:
+          - "https"
+        x-amazon-apigateway-request-validators:
+          all:
+            validateRequestBody: true
+            validateRequestParameters: true
+        x-amazon-apigateway-request-validator: "all"
+        paths:
+          /:
+            post:
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                "400":
+                  description: "400 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                "500":
+                  description: "500 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+              security: []
+              x-amazon-apigateway-integration:
+                credentials: !GetAtt LambdaFunctionIamRole.Arn
+                uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunction.Arn}/invocations
+                httpMethod: "POST"
+                type: "aws_proxy"
+          /{proxy+}:
+            post:
+              parameters:
+                - name: "proxy"
+                  in: "path"
+                  required: true
+                  type: "string"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                "400":
+                  description: "400 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                "500":
+                  description: "500 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+              security: []
+              x-amazon-apigateway-integration:
+                credentials: !GetAtt ServerlessApiLambdaFunctionIamRole.Arn
+                uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunction.Arn}/invocations
+                httpMethod: "POST"
+                type: "aws_proxy"
+        definitions:
+          Empty:
+            type: "object"
+            title: "Empty Schema"
+
+  ServerlessApiLambdaFunctionIamRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: apigateway.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: lambda
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Resource: !GetAtt LambdaFunction.Arn
+                Action: lambda:InvokeFunction
+
+  LambdaFunctionIamRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  LambdaFunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      Role: !GetAtt LambdaFunctionIamRole.Arn
+      Handler: handler.lambda_handler
+      Runtime: python3.7
+      Code:
+        S3Bucket: !Ref ArtifactBucketName
+        S3Key: !Sub ${ArtifactBucketPath}/App.zip
